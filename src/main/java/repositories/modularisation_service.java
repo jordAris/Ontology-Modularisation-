@@ -12,6 +12,8 @@ import java.util.*;
 
 public class modularisation_service {
     private Project project;
+
+    // constructor that enter in the ontology file provided in entry
     public modularisation_service(String OntologyEntryPath) {
         try {
             Collection<String> errors = new ArrayList<>();
@@ -29,6 +31,8 @@ public class modularisation_service {
     }
 
     public void Modularize() {
+
+        // extract the different elements of ontology as I can analyze easier
 
         Collection<String> nodes = new HashSet<>();
         Collection<Edge> edges = new HashSet<>();
@@ -52,7 +56,11 @@ public class modularisation_service {
 
         }
 
+        // represent now the ontology as a graph
+
         Graph ontologyGraph = new Graph(nodes, edges);
+
+        // analyze the graph
 
         Map<String, Integer> nodeCentrality = calculateNodeCentrality(ontologyGraph);
 
@@ -60,6 +68,8 @@ public class modularisation_service {
             int centrality = nodeCentrality.get(node);
             System.out.println("Node: " + node + ", Degree Centrality: " + centrality);
         }
+
+        // define the first criteria for the ontology
 
         for (Object cls: project.getKnowledgeBase().getClses()) {
             if (cls instanceof Cls) {
@@ -74,12 +84,20 @@ public class modularisation_service {
             }
         }
 
+        // define now the real criteria that we'll use for the ontology modularization
+
         List<String> moduleCriteria = defineModuleCriteria();
 
 
+        //algorithm that it create modules from our ontology represented as graph according to the different module criteria
+
         List<List<String>> modules = createModules(moduleCriteria);
 
+        // algorithm to validate the different module created (hint: the first document sent by the teacher)
+
         validateModules(modules);
+
+        // a way to make our modules visble
 
         printModules(modules);
 

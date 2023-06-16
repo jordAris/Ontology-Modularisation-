@@ -71,6 +71,32 @@ public class modularisation_service {
             }
         }
 
+        List<String> moduleCriteria = defineModuleCriteria();
+
+
+        List<List<String>> modules = createModules(moduleCriteria);
+
+        validateModules(modules);
+
+        printModules(modules);
+
+    }
+
+    private List<List<String>> createModules(List<String> moduleCriteria) {
+
+        return null;
+    }
+
+    private void printModules(List<List<String>> modules) {
+    }
+
+    private void validateModules(List<List<String>> modules) {
+    }
+
+    private List<String> defineModuleCriteria() {
+
+
+        return null;
     }
 
     private Map<String, Integer> calculateNodeCentrality(Graph graph) {

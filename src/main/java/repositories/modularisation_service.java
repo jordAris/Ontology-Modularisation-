@@ -4,6 +4,9 @@ import edu.stanford.smi.protege.model.*;
 import neededclass.Edge;
 import neededclass.Graph;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.*;
 
 
@@ -94,9 +97,26 @@ public class modularisation_service {
     }
 
     private List<String> defineModuleCriteria() {
+        List<String> modCriteria = new ArrayList<>();
 
+        try {
+            Properties properties = new Properties();
+            FileInputStream input = new FileInputStream("criteria.properties");
+            properties.load(input);
 
-        return null;
+            for (String key : properties.stringPropertyNames()) {
+                String criterion = properties.getProperty(key);
+                modCriteria.add(criterion);
+            }
+
+            input.close();
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return modCriteria;
     }
 
     private Map<String, Integer> calculateNodeCentrality(Graph graph) {

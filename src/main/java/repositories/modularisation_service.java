@@ -1,8 +1,10 @@
 package repositories;
 
 import edu.stanford.smi.protege.model.*;
+import neededclass.CosineSimilarity;
 import neededclass.Edge;
 import neededclass.Graph;
+import neededclass.SimilarityMeasure;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -63,6 +65,7 @@ public class modularisation_service {
         // analyze the graph
 
         Map<String, Integer> nodeCentrality = calculateNodeCentrality(ontologyGraph);
+        Map<String, Double> semanticDistance = calculateSemanticDistance(ontologyGraph);
 
         for (String node: nodeCentrality.keySet()) {
             int centrality = nodeCentrality.get(node);
@@ -101,6 +104,75 @@ public class modularisation_service {
 
         printModules(modules);
 
+    }
+
+    private Map<String, Double> calculateSemanticDistance(Graph graph) {
+        Map<String, Double> semanticDistance = new HashMap<>();
+
+        for (Object cls : project.getKnowledgeBase().getClses()){
+            if (cls instanceof Cls) {
+                String className = ((Cls) cls).getName();
+                double maxSimilarity = 0.0;
+
+                for (Object otherCls: project.getKnowledgeBase().getClses()) {
+                    if (otherCls instanceof Cls) {
+                        String otherClasname = ((Cls) otherCls).getName();
+                        double similarity = calculateSemanticSimilarity(className, otherClasname);
+
+                        if (similarity > maxSimilarity) {
+                            maxSimilarity = similarity;
+                        }
+                    }
+                }
+
+                semanticDistance.put(className, 1- maxSimilarity);
+            }
+        }
+
+        return semanticDistance;
+    }
+
+    private double calculateSemanticSimilarity(String className, String otherClasname) {
+        // Define a similarity measure.
+        SimilarityMeasure similarityMeasure = new CosineSimilarity();
+
+        // Determine the concept properties.
+        List<String> classNameProperties = Arrays.asList("label", "description", "synonyms");
+        List<String> otherClassNameProperties = Arrays.asList("label", "description", "synonyms");
+
+        // Preprocess the concept properties.
+        List<String> processedClassNameProperties = preprocess(classNameProperties);
+        List<String> processedOtherClassNameProperties = preprocess(otherClassNameProperties);
+
+        // Calculate similarity scores.
+        List<Double> similarityScores = new ArrayList<>();
+        for (String property : classNameProperties) {
+            double similarityScore = similarityMeasure.calculateSimilarity(processedClassNameProperties.get(0), processedOtherClassNameProperties.get(0));
+            similarityScores.add(similarityScore);
+        }
+
+        // Aggregate similarity scores.
+        double similarityScore = 0;
+        for (double score : similarityScores) {
+            similarityScore += score;
+        }
+        similarityScore /= similarityScores.size();
+
+        // Normalize similarity scores.
+        similarityScore = Math.min(Math.max(similarityScore, 0.0), 1.0);
+
+        return similarityScore;
+    }
+
+    private List<String> preprocess(List<String> properties) {
+        List<String> processedProperties = new ArrayList<>();
+        for (String property : properties) {
+            property = property.toLowerCase();
+            property = removeStopwords(property);
+            property = stem(property);
+            processedProperties.add(property);
+        }
+        return processedProperties;
     }
 
     private List<List<String>> createModules(List<String> moduleCriteria) {

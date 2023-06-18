@@ -5,6 +5,8 @@ import neededclass.CosineSimilarity;
 import neededclass.Edge;
 import neededclass.Graph;
 import neededclass.SimilarityMeasure;
+import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.en.*;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -168,8 +170,10 @@ public class modularisation_service {
         List<String> processedProperties = new ArrayList<>();
         for (String property : properties) {
             property = property.toLowerCase();
-            property = removeStopwords(property);
-            property = stem(property);
+            StopAnalyzer stopAnalyzer = new StopAnalyzer();
+            property = stopAnalyzer.removeStopWords(property);
+            PorterStemmer stemmer = new PorterStemmer();
+            property = stemmer.stem(property);
             processedProperties.add(property);
         }
         return processedProperties;

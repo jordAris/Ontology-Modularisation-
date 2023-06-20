@@ -7,6 +7,8 @@ import neededclass.Graph;
 import neededclass.SimilarityMeasure;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.en.*;
+import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.tartarus.snowball.ext.PorterStemmer;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -69,42 +71,114 @@ public class modularisation_service {
         Map<String, Integer> nodeCentrality = calculateNodeCentrality(ontologyGraph);
         Map<String, Double> semanticDistance = calculateSemanticDistance(ontologyGraph);
 
-        for (String node: nodeCentrality.keySet()) {
+        evaluateCriteria(nodeCentrality, semanticDistance);
+
+        // define now the real criteria that we'll use for the ontology modularization
+
+        List<String> moduleCriteria = new ArrayList<>();
+        Map<String, String> projectRequirements = getProjectRequirements();
+
+        for (String node : nodeCentrality.keySet()) {
             int centrality = nodeCentrality.get(node);
-            System.out.println("Node: " + node + ", Degree Centrality: " + centrality);
+            double semanticDistances = semanticDistance.get(node);
+
+            String criteria = "";
+            if (centrality >= Integer.parseInt(projectRequirements.get("centrality"))){
+                criteria += "centrality";
+            }
+            if (semanticDistances <= Double.parseDouble(projectRequirements.get("semanticDistance"))) {
+                criteria += "semanticDistance";
+            }
+
+            if (criteria.length() > 0) {
+                moduleCriteria.add(criteria);
+            }
         }
 
-        // define the first criteria for the ontology
+        //algorithm that it create modules from our ontology represented as graph according to the different module criteria
 
-        for (Object cls: project.getKnowledgeBase().getClses()) {
-            if (cls instanceof Cls) {
-                String className = ((Cls) cls).getName();
-                // Example criteria evaluation
-                boolean meetsCriteria = evaluateCriteria(className);
-                if (meetsCriteria) {
-                    System.out.println(className + " meets the criteria.");
-                } else {
-                    System.out.println(className + " does not meet the criteria.");
+        List<List<String>> modules = new ArrayList<>();
+
+        for (String node : nodes){
+            if(modules.isEmpty()){
+                List<String> module = new ArrayList<>();
+                module.add(node);
+                modules.add(module);
+            } else {
+                boolean found = false;
+                for (List<String> module : modules) {
+                    if (moduleCriteria.contains("centrality") && nodeCentrality.get(node) >= Integer.parseInt(moduleCriteria.get(moduleCriteria.indexOf("centrality")))) {
+                        if (moduleCriteria.contains("semanticDistance") && semanticDistance.get(node + "," + module.get(0)) <= Double.parseDouble(moduleCriteria.get((moduleCriteria.indexOf("semanticDistance"))))){
+                            module.add(node);
+                            found = true;
+                            break;
+                        }
+
+                    } else if (!moduleCriteria.contains("centrality") && semanticDistance.get(node + "," + module.get(0)) <= Double.parseDouble(moduleCriteria.get(moduleCriteria.indexOf("semanticDistance")))) {
+                        module.add(node);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found){
+                    List<String> module = new ArrayList<>();
+                    module.add(node);
+                    modules.add(module);
                 }
             }
         }
 
-        // define now the real criteria that we'll use for the ontology modularization
-
-        List<String> moduleCriteria = defineModuleCriteria();
-
-
-        //algorithm that it create modules from our ontology represented as graph according to the different module criteria
-
-        List<List<String>> modules = createModules(moduleCriteria);
-
         // algorithm to validate the different module created (hint: the first document sent by the teacher)
 
-        validateModules(modules);
+        for (List<String> module : modules) {
+            int numInternalEdges = 0;
+            int numPossibleInternalEdges = (module.size() * (module.size() - 1)) /2 ;
+
+            for (int i= 0; i < module.size() - 1; i++){
+                String node1 = module.get(i);
+                for (int j = i+1; j< module.size(); j++) {
+                    String node2 = module.get(j);
+                    if(ontologyGraph.containsEdge(node1, node2)) {
+                        numInternalEdges ++;
+                    }
+                }
+            }
+
+            double cohesion = (double) numInternalEdges/numPossibleInternalEdges;
+            int numExternalEdges = 0;
+            int numPossibleExternalEdges = module.size() * (ontologyGraph.getNodeCount() - module.size());
+
+            for (String node : module) {
+                for (List<String> otherModule : modules ) {
+                    if (otherModule != module) {
+                        for (String otherNode : otherModule) {
+                            if (ontologyGraph.containsEdge(node, otherNode))
+                                numExternalEdges++;
+                        }
+                    }
+                }
+            }
+
+            double coupling = (double) numExternalEdges /numPossibleExternalEdges;
+            double modularizationQuality = (cohesion-coupling)/(cohesion+coupling);
+
+            System.out.println("Module: " + module);
+            System.out.println("Cohesion: " + cohesion);
+            System.out.println("Coupling: " + coupling);
+            System.out.println("Modularization Quality: " + modularizationQuality);
+            System.out.println();
+        }
+
 
         // a way to make our modules visble
 
-        printModules(modules);
+        System.out.println("The modules are:");
+        for (List<String> module : modules) {
+            System.out.println("Module: " + module);
+            System.out.println(" Nodes: " + module.toString());
+            System.out.println();
+        }
 
     }
 
@@ -170,48 +244,40 @@ public class modularisation_service {
         List<String> processedProperties = new ArrayList<>();
         for (String property : properties) {
             property = property.toLowerCase();
-            StopAnalyzer stopAnalyzer = new StopAnalyzer();
-            property = stopAnalyzer.removeStopWords(property);
-            PorterStemmer stemmer = new PorterStemmer();
-            property = stemmer.stem(property);
+            property = removeStopWords(property);
+            property = stem(property);
             processedProperties.add(property);
         }
         return processedProperties;
     }
 
-    private List<List<String>> createModules(List<String> moduleCriteria) {
-
-        return null;
+    private String removeStopWords(String property) {
+        Set<String> stopWords = new HashSet<>(Arrays.asList("the", "of", "and", "to", "in", "a", "that", "is", "was"));
+        return property.replaceAll(" " + stopWords.toString() + " ", " ");
     }
+
+    private String stem(String property) {
+        PorterStemmer stemmer = new PorterStemmer();
+        stemmer.setCurrent(property);
+        stemmer.stem();
+        return stemmer.getCurrent();
+    }
+
 
     private void printModules(List<List<String>> modules) {
     }
 
-    private void validateModules(List<List<String>> modules) {
+
+    private Map<String, String> getProjectRequirements() {
+        Map<String, String> projectRequirements = new HashMap<>();
+
+        projectRequirements.put("centrality", "10");
+        projectRequirements.put("semanticDistance", "5");
+
+        return projectRequirements;
     }
 
-    private List<String> defineModuleCriteria() {
-        List<String> modCriteria = new ArrayList<>();
 
-        try {
-            Properties properties = new Properties();
-            FileInputStream input = new FileInputStream("criteria.properties");
-            properties.load(input);
-
-            for (String key : properties.stringPropertyNames()) {
-                String criterion = properties.getProperty(key);
-                modCriteria.add(criterion);
-            }
-
-            input.close();
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return modCriteria;
-    }
 
     private Map<String, Integer> calculateNodeCentrality(Graph graph) {
         Map<String, Integer> nodeCentrality = new HashMap<>();
@@ -224,10 +290,22 @@ public class modularisation_service {
         return nodeCentrality;
     }
 
-    private boolean evaluateCriteria(String className) {
+    private void evaluateCriteria(Map<String, Integer> nodeCentrality, Map<String, Double> semanticDistance) {
+        Map<String, Integer> nodeRanks = new HashMap<>();
 
-        Cls cls = project.getKnowledgeBase().getCls(className);
-        return className.startsWith("prefix");
+        for (String node : nodeCentrality.keySet()){
+            int centrality = nodeCentrality.get(node);
+            double semanticDistances = semanticDistance.get(node);
+
+            int rank = centrality + (int) (semanticDistances * 10);
+        }
+
+        List<String> rankedNodes = new ArrayList<>(nodeRanks.keySet());
+        Collections.sort(rankedNodes, (n1, n2) -> nodeRanks.get(n1)-nodeRanks.get(n2));
+
+        for (int i= 0; i< 10; i++) {
+            System.out.println(rankedNodes.get(i));
+        }
     }
 
 

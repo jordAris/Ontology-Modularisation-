@@ -24,4 +24,22 @@ public class Graph {
         }
         return degree;
     }
+
+    public boolean containsEdge(String node, String otherNode) {
+        for (Edge edge : edges) {
+            if (edge.getSource().equals(node) && edge.getTarget().equals(otherNode)) {
+                return true;
+            } else if (edge.getSource().equals(otherNode) && edge.getTarget().equals(node)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public int getNodeCount() {
+        int nodeCount = nodes.size();
+
+        return nodeCount;
+    }
 }
